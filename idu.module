@@ -1,0 +1,433 @@
+<?php
+
+/**
+ * Implements hook_init.
+ * 
+ * @return type
+ */
+function idu_init( ) {
+  module_load_include('inc', 'idu', 'idu_constants');
+  // module_load_include('inc', 'repository_control');
+  // module_load_include('inc', 'repository_control', 'log_record');
+  // module_load_include('inc', 'repository_control', 'csv_cells');
+  // module_load_include('inc', 'repository_control', 'object_record');
+  // module_load_include('inc', 'phpexcel');
+  if (module_exists('islandora_paged_content')) {
+    module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
+    module_load_include('inc', 'islandora_paged_content', 'includes/manage_pages');
+  }
+  if (module_exists('islandora_audio')) { module_load_include('inc', 'islandora_audio', 'includes/derivatives'); }
+  if (module_exists('islandora_fits')) { module_load_include('inc', 'islandora_fits', 'includes/derivatives'); }
+  if (module_exists('islandora_basic_image')) { module_load_include('inc', 'islandora_basic_image', 'includes/derivatives'); }
+  if (module_exists('islandora_large_image')) { module_load_include('inc', 'islandora_large_image', 'includes/derivatives'); }
+  if (module_exists('islandora_pdf')) { module_load_include('inc', 'islandora_pdf', 'includes/derivatives'); }
+  return;
+}
+
+/** 
+ * Implements hook_help.
+ * 
+ * @param type $path
+ * @param type $arg
+ * @return type
+ */
+function idu_help($path, $arg) {
+  if ($path == 'admin/help#idu') {
+    return t('Islandora Drush Utilities provides a suite of commands and options to help admins manage Fedora objects and their datastreams.');
+  }
+}
+
+
+/**
+ * Implements hook form.
+ * 
+ * @param type $form
+ * @param type $form_state
+ * @return type
+ */
+function idu_main_form($form, &$form_state) {
+  if (!isset($form_state['storage']['confirm'])) {
+    
+    $form['operation'] = array(
+        '#type' => 'select',
+        '#title' => t('Select the operation to be performed.'),
+        '#default_value' => variable_get('icg_operation', 'HEALTH_CHECK'),
+        '#options' => array(
+          'OPEN_REPORT' => t('  OPEN_REPORT - Present a link to download / open the specified XLSX health check report. '),
+        ),
+    );
+    
+   $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Submit'),
+    );
+
+    return $form;
+    
+  } else {  // The confirmation (secondary) form.
+    
+    $op = $form_state['values']['operation'];
+    $default_file = variable_get('icg_xlsxFile', "public://HEALTH_CHECK.xlsx");
+    
+    if ($op === 'OPEN_REPORT') {
+      $form['xlsxFile'] = array(
+       '#type' => 'textfield',
+       '#title' => t('Enter the name of the existing XLSX file to open. '),
+       '#default_value' => $default_file,
+       '#size' => 80,
+       '#maxlength' => 80,
+      );
+    } else {
+      $form['first'] = array(
+       '#type' => 'textfield',
+       '#title' => t('Enter the first PID number to process.'),
+       '#default_value' => variable_get('icg_first', '0'),
+       '#size' => 10,
+       '#maxlength' => 10,
+      );
+      $form['last'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Enter the last PID number to process.'),
+        '#default_value' => variable_get('icg_last', '10000'),
+        '#size' => 10,
+        '#maxlength' => 10,
+      );
+      $form['inactives'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Check here if you want to include inactive and empty (deleted) objects.'),
+        '#default_value' => variable_get('icg_inactives', FALSE),
+      );
+    }
+
+  }
+    
+  $alias = variable_get('icg_repoAlias');
+  $namespace = variable_get('icg_namespace');
+  return confirm_form($form, " Operation '$op' - Proceed with the specified inputs and the '$namespace' namespace of '$alias'? ", 'idu', '  This action cannot be undone. ', $op, 'Cancel');
+  
+}
+
+/**
+ * Implements hook_form_validate.
+ *  
+ * @param type $form
+ * @param type $form_state
+ * @return type
+ */
+function idu_main_form_validate($form, &$form_state) {
+  return;
+}
+
+/**
+ * Implements hook_form_submit.
+ * 
+ * @param type $form
+ * @param type $form_state
+ * @return type
+ */
+function idu_main_form_submit($form, &$form_state) {
+
+  // If confirm is NOT set, this will cause the form to be rebuilt, entering the confirm part.
+  if (!isset($form_state['storage']['confirm'])) {
+
+    $form_state['storage']['confirm'] = TRUE;
+    $form_state['storage']['original_form'] = $form_state['values'];
+    $form_state['rebuild'] = TRUE;
+      
+  } else {  // Do real form submittal.
+    
+    drupal_set_message(t('The Islandora Health Check main form has been submitted.'));
+
+    $main = $form_state['storage']['original_form'];   // get controls from the main form
+    $secondary = $form_state['values'];                // get controls from the secondary form
+
+    icg_set_variable('operation', $main);
+
+    icg_set_variable('first', $secondary);
+    icg_set_variable('last', $secondary);
+    icg_set_variable('inactives', $secondary);
+    icg_set_variable('onlyCols', $secondary);
+    icg_set_variable('xlsxFile', $secondary);
+
+    idu_op( );  // Distribute control to the specified $op.
+    }
+    
+  return;
+}
+
+/**
+ * Implements hook_menu().
+ * 
+ * @return type
+ */
+function idu_menu( ) {
+  $items = array();
+  $items['idu'] = array(
+      'title' => 'Islandora Drush Utilities',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('idu_main_form'),
+      'description' => 'Islandora Drush Utilities',
+      'access arguments' => array('administer users'),
+      'type' => MENU_NORMAL_ITEM,
+  );
+  return $items;
+}
+
+/**
+ * Returns an associative array of PIDS found in the specified range.
+ * 
+ * @param array $context
+ *   Drupal batch $context array.  Returns with an associative array of 
+ *   PIDnum => Title values in $context['sandbox']['objPIDs'] for objects 
+ *   found in the specified range.
+ * @return integer
+ *   The PID number of the last/highest numbered PID found in the range. The
+ *   variable icg_last is automatically set to this limiting value.
+ */
+function idu_getPIDs(&$context) {
+  $obj_pids = array();
+  $first = intval(variable_get('icg_first'));
+  $last = intval(variable_get('icg_last'));
+  $range = $last - $first + 1;
+  $largest = 0;
+  
+  $ns = variable_get('icg_namespace');
+
+  // Loop through the repo looking for objects in the specified range.
+
+  for ($i=$first, $notFound=0; $i<=$last; $i++) {
+    $pid = $ns.$i;
+    try {
+      $object = idu_repo( )->getObject($pid);
+    } catch (Exception $e) {
+      if ($e->getCode() === 404) {
+        $obj_pids[$i] = '-*-Not Found-*-';
+        $notFound++;
+      } else {
+        drupal_set_message("PID '$pid' forced a FedoraRepository getObject( ) exception: '$e' ", 'error');
+      }
+      continue;  // for any exception...skip this PID
+    }
+    $obj_pids[$i] = $object->label;
+    $largest = $i;
+  }
+
+  // If any PIDs were not found, report them.
+  if ($notFound > 0) {
+    if ($range > 10) {
+      drupal_set_message("A total of $notFound PIDs in the specified range were NOT FOUND.", 'warning');
+    }
+    foreach ($obj_pids as $pid => $status) {
+      if ($status === '-*-Not Found-*-') {
+        if ($range<=10 && variable_get('icg_verbose')) {
+          drupal_set_message("Object $pid was NOT FOUND.", 'warning');
+        }
+        unset($obj_pids[$pid]);  // remove it from our list
+      }
+    }
+  }
+
+  // Save the found object PIDs in the batch results.
+  $context['results']['objectPIDs'] = $obj_pids;
+  idu_post($context);
+  
+  variable_set('icg_last', $largest);
+  return $largest;
+}
+
+/**
+ * Open the repository for the rest of IDU to use.
+ * 
+ * @global FedoraRepository $repository
+ * @return FedoraRepository 
+ */
+ function idu_repo( ) {
+  global $repository;
+  if (!is_null($repository)) {
+    return $repository;
+  } else if (!$repository = icu_Repository()) {
+    die('Error in idu_repo( )...no connection to Fedora!'); 
+  } 
+  return $repository;
+}
+
+
+/**
+ * Create or Modify an object handle and assign it.
+ *
+ * This function relies on constants defined in idu_constants.inc.  It attempts to open a new or existing Handle system
+ * batch command file and appends necessary commands to this file to create or modify and assign a new handle to the target
+ * object.  The batch file is defined in temporary://H_BATCH.  This function does NOT initiate processing of the batch file,
+ * that must be done elsewhere.
+ *
+ * @param FedoraObject $object
+ *   The Fedora object for which the handle is created or modified.
+ * @param string $op
+ *   Set to either 'CREATE' or 'MODIFY'.  If --force is specified this value may be overridden.
+ * @param bool $force
+ *   If TRUE, this function will continue even if the state of the mods:identifier[@type='hdl'] element is not as expected for the specified $op.
+ * @return int
+ *   Returns 0 or 1 indicating the number of handles processed.
+ */
+function idu_handle_create_or_modify($object, $op='CREATE', $force=FALSE) {
+  static $mods_ns = 'mods';
+  static $mods_nsU = 'http://www.loc.gov/mods/v3';
+
+  $pid = $object->id;
+  $verbose = drush_get_option('verbose', False);
+  if ($verbose) {
+    idu_drush_log(__FUNCTION__." is processing object $pid.", 'status');
+  }
+
+  // Specify the target batch and log files in temporary://.
+  $fileName = 'temporary://'.H_BATCH;
+  $logFile = 'temporary://'.H_LOG;
+
+  // Open (or create) the batch file and log file.
+  $old = file_exists($fileName);
+  if (!$file = fopen($fileName, 'a+')) die("Could not open batch file $fileName!  ");
+  if (!$log = fopen($logFile, 'a+')) die("Could not open log file $logFile!  ");
+
+  // If this is a new batch command file, print an AUTHENTICATE command block.
+  if (!$old) {
+    $cmd  = "AUTHENTICATE PUBKEY:300:0.NA/".H_PREFIX." \n".H_SVRDIR."/admpriv.bin";
+    if (H_ADMKEY == ' ') {
+      $key = $keyLog = '';
+    } else {
+      $key = '|'.H_ADMKEY;
+      $keyLog = '|***obfuscated*keyphrase***';
+    }
+    fprintf($file, "%s%s\n\n", $cmd, $key);
+    fprintf($log, "%s%s\n\n", $cmd, $keyLog);
+  }
+
+  // Open the MODS datastream, if none... done.
+  if (!$mods = $object['MODS']) {
+    fprintf($log, "Warning: Object '$pid' has NO MODS record.\n");
+    fclose($file);
+    fclose($log);
+    return 0;
+  }
+
+  // Search MODS using xpath query.
+  $m = new DOMDocument( );
+  $content = $mods->content;
+  $m->loadXML($content);
+  $mx = new DOMXpath($m);
+  $mx->registerNamespace($mods_ns, $mods_nsU);
+
+  /*
+  $content = $mods->content;
+  $xml = new SimpleXMLElement($content); */
+
+  $xpath = "/mods:mods/mods:identifier[@type='hdl']";
+
+  // Does this object already have a handle?
+  // if ($nodes = $xml->xpath($xpath)) {    // Yes...
+  $nodes = $mx->query($xpath);
+  if ($nodes->length > 0) {    // Yes...
+    // $oldHandle = (string)$nodes[0];
+    if ($op === 'CREATE' && !$force) {
+      fclose($file);
+      fclose($log);
+      return 0;
+    }
+  } else if ($op === 'MODIFY') {  // No existing handle...if Modify we need to adjust or give up.
+    if ($force) {
+      $op = 'CREATE';
+    } else {
+      fprintf($log, "Warning: Object '$pid' has no assigned Handle.  Use --force or 'drush iduH $pid Create' if you wish to create one.\n\n");
+      fclose($file);
+      fclose($log);
+      return 0;
+    }
+  }
+
+  // Appropriate handle status found.  Create or modify one as needed.
+  list($ns, $pidn) = explode(':', $pid);
+
+  // Set the batch file permissions so that it can be deleted later.
+  $path = drupal_realpath($fileName);
+  if (!$ok = chmod($path, 0777)) {
+    die("Permissions could not be set for batch file $fileName.  ");
+  }
+
+  // Build the object handle and handle.net URI for this object.  If the namespace of the object matches the specified
+  //   H_NUMERIC_ONLY defined parameter, then use only the numeric part of the $pid; otherwise use the entire $pid.
+  //
+  $handle = ("$ns:" === H_NUMERIC_ONLY ? $pidn : $pid);
+  $hdl = 'http://hdl.handle.net/'.H_PREFIX.'/'.$handle;
+
+  // Sanitize the object ID (title) for Handle!  No double quotes and length no more than 120 characters.
+  $handle_title = str_replace('"', "", $object->label);
+  if (strlen($handle_title) > 117) {
+    $lines = explode("\n", wordwrap($handle_title, 117));
+    $handle_title = $lines[0] . "...";
+  }
+
+  // Remove all old handle identifiers and add one new HDL identifier element to the MODS.
+  $mods = new DOMDocument( );
+  $mods->loadXML($content);
+  $mx = new DOMXpath($mods);
+  $mx->registerNamespace($mods_ns, $mods_nsU);
+
+  foreach ($mx->query("/mods:mods/mods:identifier[@type='hdl']") as $node) {
+    $parent = $node->parentNode;
+    $parent->removeChild($node);    // remove the old handles
+  }
+
+  // Add a new type='hdl' identifier.
+  $id = $mods->createElement('identifier', $hdl);
+  $mods->documentElement->appendChild($id);
+  $id->setAttribute('type', 'hdl');
+
+  // Remove all URI and DOI identifier elements found at the first level.
+  $types = array("doi", "uri");
+  foreach ($types as $type) {
+    $nodes = $mx->query("/mods:mods/mods:identifier[@type='$type']");
+    if ($nodes->length > 0) {
+      foreach ($nodes as $node) {
+        $parent = $node->parentNode;
+        $parent->removeChild($node);    // remove the old element
+      }
+    }
+  }
+
+  // If the object has a 'local' identifier, preserve it.  If not, add the handle as a new local ID.
+  $nLocal = 0;
+  foreach ($mx->query("/mods:mods/mods:identifier[@type='local']") as $node) {
+    $nLocal++;
+  }
+
+  if ($nLocal === 0) {
+    $id = $mods->createElement('identifier', $pid);
+    $mods->documentElement->appendChild($id);
+    $id->setAttribute('type', 'local');
+  }
+
+  /* Do NOT add a new type='uri' identifier to match the handle ID.
+  $id = $mods->createElement('identifier', $hdl);
+  $mods->documentElement->appendChild($id);
+  $id->setAttribute('type', 'uri');
+  */
+
+  // Save the MODS changes.
+  $object['MODS']->setContentFromString($mods->saveXML());
+
+  // Add the appropriate command to the batch file.
+  $cmd = "$op ".H_PREFIX."/$handle";
+  fprintf($file, "%s\n", $cmd);
+  fprintf($log, "%s\n", $cmd);
+
+  $cmd  = "100 HS_ADMIN 86400 1110 ADMIN 300:111111111111:0.NA/".H_PREFIX."\n";
+  $cmd .= "8 URL 86400 1110 UTF8 ".H_OBJECT_PATH."$pid\n";
+  $cmd .= "9 DESC 86400 1110 UTF8 $handle_title\n";
+  fprintf($file, "%s\n", $cmd);
+  fprintf($log, "%s\n", $cmd);
+
+  // Close the batch and log files and return 1, the number of objects processed.
+  fclose($file);
+  fclose($log);
+
+  return 1;
+}
