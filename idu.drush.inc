@@ -1036,8 +1036,8 @@ function icu_fetch_PIDs($namespace, $start, $end=NULL, $onlyIn="2", $collection=
 
   // Build the namespace object query...
 
-  $q = "PID:$namespace*";     // $q = "PID:(*".$namespace."\:*)";
-  $fq = "&fq=fgs_lastModifiedDate_dt:".$onlyIn."*";    // filter by modified date
+  $q = "PID:$namespace*";
+  $fq = "&fq=-PID:grinnell-*&fq=fgs_lastModifiedDate_dt:".$onlyIn."*";    // remove "grinnell-*" PIDS and filter by modified date
 
   if ($collection) { $fq .= "&fq=RELS_EXT_isMemberOfCollection_uri_s:".$collection; }
   if ($contentType) { $fq .= "&fq=RELS_EXT_hasModel_uri_s:".$contentType; }
