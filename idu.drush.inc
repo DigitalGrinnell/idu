@@ -4,14 +4,14 @@
 
 /**
  * Some available drush functions...
- * 
+ *
  * drush_log('Log an event using drush', 'warning');
  * drush_set_error('Set an error with drush.');
  * t('Translate strings with drush');
  * drush_print('Print to command line with drush');
  * drush_print_table($rows, TRUE); //print a command line table with drush
  * drush_confirm('Are you sure you want to continue?', $indent = 0); //Add drush confirmation
- * 
+ *
  */
 
 /**
@@ -19,8 +19,10 @@
  */
 function iduF_validate($fix) {
   $verified = array(                // $verified holds the verification/availability status of iduF commands.
+    'Derivatives' => '10-Mar-2019',
     'IndexSolr' => '10-Mar-2019',
     'Purge' => '10-Mar-2019',
+    'RemoveEmptyCues' => '18-Mar-2019',
   );
 
   if (!key_exists($fix, $verified)) {
@@ -67,52 +69,52 @@ function idu_drush_command( ) {
           derived.  Default values for date and creator are
           'Unspecified' and 'Unknown'.  Use --fixName to ensure that
           MODS records have a valid /name/namePart[not(@*)] element.
-          
-          Options: 
-            --hidden=FALSE  If TRUE a /mods/extension/hidden_creators element is 
+
+          Options:
+            --hidden=FALSE  If TRUE a /mods/extension/hidden_creators element is
                created instead of /mods/extension/creators.
 
       --- The commands which follow are never automatically executed ---
-      
+
       AddDatastream -
-        Adds the --dsid datastream with --title and --contents to an 
-          existing object.  
-          
+        Adds the --dsid datastream with --title and --contents to an
+          existing object.
+
         Option defaults are:
           dsid=WF,
           title='Islandora Webforms List',
           contents=' 1934660 '
-          
+
       AddXML -
-        Adds a single XML element named --title, with a value of 
-          --contents, to an existing object's --dsid datastream.  One 
-          element is appended to one existing parent element identified 
-          by --xpath. 
-          
+        Adds a single XML element named --title, with a value of
+          --contents, to an existing object's --dsid datastream.  One
+          element is appended to one existing parent element identified
+          by --xpath.
+
         Option defaults are:
-          dryRun=FALSE, 
-          dsid=MODS, 
+          dryRun=FALSE,
+          dsid=MODS,
           xpath=/mods:mods/mods:originInfo,
-          title=dateCreated, and 
+          title=dateCreated, and
           contents=date('now')
 
       ChangeDatastream -
-        Changes the --dsid datastream's LABEL to --title, OR its ID to 
-          --replace for an existing object.  
-          
+        Changes the --dsid datastream's LABEL to --title, OR its ID to
+          --replace for an existing object.
+
       ChangeText -
         Changes --find text to --replace either in general or within the
           value of a specified --xpath.
 
         Options: find, replace, substitutionsFile, dsid, xpath, dryRun.
 
-      ChildSync - 
-        Synchornize characteristics of child objects with their parent.  
-          This function only touches objects where the isConstituentOf 
+      ChildSync -
+        Synchornize characteristics of child objects with their parent.
+          This function only touches objects where the isConstituentOf
           relationship exists.
- 
+
           Characteristics include:
-            Child will inherit the same isMemberOfCollection values as 
+            Child will inherit the same isMemberOfCollection values as
             the parent.
 
       Clean -
@@ -120,7 +122,7 @@ function idu_drush_command( ) {
 
       CModelToMODS -
         Copy object's /rdf:RDF/rdf:Description/...
-          fedora-model:hasModel[@rdf:resource] attribute from the RELS-EXT 
+          fedora-model:hasModel[@rdf:resource] attribute from the RELS-EXT
           datastream to its /mods/extension/CModel.
 
       ConvertTIFtoJP2 -
@@ -130,19 +132,19 @@ function idu_drush_command( ) {
       CopyDatastream -
         Copies the named --dsid datastream from a specified --parent object
           to the target object.  [Verified 2-May-2018]
-          
+
       CorrectCollections -
-        Corrects collection assignments including removal of duplicate 
-          collection relationships, and removal of --retire collection 
+        Corrects collection assignments including removal of duplicate
+          collection relationships, and removal of --retire collection
           references IF other relationships exist.
-          
+
       CreateIslandoraBags -
         Initiates one or more 'drush --user=1 create-islandora-bag object PID'
           commands to generate Bagit containers of object datastreams.
 
       DateCreatedFix -
         Looks for invalid date strings in /mods/originInfo/dateCreated
-          fields and attempts to fix them if the --dryRun option 
+          fields and attempts to fix them if the --dryRun option
           is NOT set.  Note that --force defaults to TRUE for this command.
 
       DateFieldFix -
@@ -150,32 +152,32 @@ function idu_drush_command( ) {
           fields and if found, it removes the field and replaces it with
           a corresponding /mods/note[@type='date'] field, value and, an
           appropriate @displayLabel attribute too. Modified object MODS
-          are automatically reordered, self-transformed, and re-indexed 
+          are automatically reordered, self-transformed, and re-indexed
           in Solr.  [Verified 23-Aug-2018]
-          
+
       DCTransform -
         Applies the specified MODS-to-DC Transform to an object.
 
       Derivatives -
         Attempts to regenerate ALL derivatives for an existing object.
-        
+
       Discover -
         Attempts to identify objects that are NOT indexed in Solr.  The
           --force and --repeat options are implied with a default --repeat
           value of 1000.
-          
+
       HarvestOCR -
-        Looks for OCR or FULL_TEXT datastreams in the target objects and, 
-          if found, it writes the datastream text content to a file named 
-          [namespace]_[pidn].[ds].txt in 
+        Looks for OCR or FULL_TEXT datastreams in the target objects and,
+          if found, it writes the datastream text content to a file named
+          [namespace]_[pidn].[ds].txt in
           //STORAGE/LIBRARY/LIBSTU/DG_OCR_Files/Pending_Review/.
-        
+
       ImportCSV -
         Reads data, one line at at time, from the named --csv CSV data file
         and passes the line to idu_drush_import( ) for processing.
 
       IndexSolr -
-        Attempts to update an object's Solr index.  If the --force option is 
+        Attempts to update an object's Solr index.  If the --force option is
         set this command will NOT use Solr to retrieve a list of objects.
 
       isConstituentOf -
@@ -183,7 +185,7 @@ function idu_drush_command( ) {
           attribute form.
 
       Last -
-        Find the last (largest PID) indexed in Solr for the specified 
+        Find the last (largest PID) indexed in Solr for the specified
           namespace and sets the namespace_last variable with it's value.
 
       List -
@@ -207,23 +209,23 @@ function idu_drush_command( ) {
 
       PermissionsRelax -
         Applies a 'relaxed' POLICY to an object to make it visible
-          to all.  The original POLICY is copied to a new Old_POLICY 
-          datastream.  If --find is specified the change will be made 
+          to all.  The original POLICY is copied to a new Old_POLICY
+          datastream.  If --find is specified the change will be made
           ONLY if the specified string exists in the DC datastream, and
-          if both --find and --dsid exist then only the specified DSID 
-          will be searched.  
-     
+          if both --find and --dsid exist then only the specified DSID
+          will be searched.
+
         Option defaults are:
           dsid=NULL
           find=NULL
 
       PermissionsRestore -
         Restores an 'Old_POLICY' datastream as POLICY in order to bring
-        back an object's original permissions/policy. 
+        back an object's original permissions/policy.
 
       Purge -
-        Deletes the object.  If the --force option is set this command 
-        will NOT use Solr to retrieve a list of objects. 
+        Deletes the object.  If the --force option is set this command
+        will NOT use Solr to retrieve a list of objects.
         Be careful with this one! [Verified 30-Apr-2018]
 
       PurgeDatastream -
@@ -231,11 +233,11 @@ function idu_drush_command( ) {
         [Verified 2-May-2018]
 
       PurgeDSVersions -
-        Purges all but the current copy of an existing object's --dsid 
-        datastream. 
+        Purges all but the current copy of an existing object's --dsid
+        datastream.
 
       PurgeElements -
-        Removes all --xpath matched elements from the specified --dsid      
+        Removes all --xpath matched elements from the specified --dsid
           datastream. [Verified 27-Apr-2018]
 
       PurgeFamily -
@@ -249,27 +251,27 @@ function idu_drush_command( ) {
         Removes the named --dsid datastream(s) from an existing object. Note
           that in this context --dsid may contain wildcards like the default
           value of MODS_*. Use --dryRun to count matches only.
- 
+
       RemoveDuplicateElements -
         Removes duplicate elements from the --dsid datastream of an existing
           object.  Use the --dryRun option to report duplicates only.
 
       RemoveEmptyCues -
-        Removes empty cue elements from the --dsid (default is TRANSCRIPT) datastream 
-          of an existing oral history object.  Use the --dryRun option to 
+        Removes empty cue elements from the --dsid (default is TRANSCRIPT) datastream
+          of an existing oral history object.  Use the --dryRun option to
           report only.
 
       RenameDatastream -
-        Changes the DSID of the named --dsid datastream to one named 
-          --replace, and if --self is specified, runs the self transform on 
+        Changes the DSID of the named --dsid datastream to one named
+          --replace, and if --self is specified, runs the self transform on
           the datastream.
 
       ReportChildDuplicates -
-        Echo the MODS elements of a child object that are duplicated in its 
+        Echo the MODS elements of a child object that are duplicated in its
         parent.
 
       Special -
-        Based on ChangeText...this command changes to meet special needs! 
+        Based on ChangeText...this command changes to meet special needs!
 
         Options: dsid, xpath, dryRun.
 
@@ -512,7 +514,7 @@ function idu_drush_print_progress($label, $current=NULL, $range=NULL) {
 
 /**
  * Wrapper for drush_log( ).
- * 
+ *
  * @param $msg
  * @param $status
  */
@@ -613,14 +615,18 @@ function drush_idu_iduFix($pspec, $fix) {
       $last = $first + $repeat;
       $spec = $ns . ':' . $first . '-' . $last;
       drush_log("ns:last notation used.  '$ns:$first' was identifed as the last indexed PID.", 'status');
-    }
-    else {
+    } else {
       list($ns, $spec) = explode(':', $pspec);
-      list($first, $last) = explode('-', $spec);
-      if (!$last) {
-        $last = $first + $repeat;
+      if (strpos($spec, '-') !== false) {
+        list($first, $last) = explode('-', $spec);
+        if (!$last) {
+          $last = $first + $repeat;
+        }
+      } else {
+        $last = $first = $spec;
       }
     }
+
     $spec = $ns . ':' . $first . '-' . $last;
 
     // If this retrieve has a valid --force option without --reindex...
@@ -748,9 +754,134 @@ function _idu_Repository() {
 
 
 
-/**
+/****************************************************************************************************
  * Drush iduF (Fix) command functions follow here in alphabetical order.
+*****************************************************************************************************/
+
+
+ /**
+ * Drush idu_fix_* function to regenerate derivatives.
+ *
+ * Invoke this function using iduF <pids> Derivatives (with --only=TECHMD if you only want new FITS metadata).
+ *
+ * @param string $pid
+ *   The object PID to operate on.
+ * @return int
+ *   The number of repair operations performed, or zero if none.
  */
+ function idu_drush_fix_Derivatives($pid) {
+
+   // For any exception, report and skip this PID
+   if (!$object = _idu_Repository()->getObject($pid)) {
+     idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+     return 0;
+   }
+
+  $only = drush_get_option('only', '*');
+  $dsid = drush_get_option('dsid', 'OBJ');
+
+  // Check for --mime option.  If present and the object has no OBJ or the OBJ MIME is not of the correct
+  // type, then skip this object.
+
+  $mime = drush_get_option('mime', NULL);
+  if (!is_null($mime)) {
+    if (!$obj = $object['OBJ']) { return 0; }
+    $objMIME = $obj->mimetype;
+    if ($mime != $objMIME) { return 0; }
+  }
+
+  $count = 0;
+  $rels = $object->relationships->get(FEDORA_MODEL_URI, 'hasModel');
+  $nCM = count($rels);
+  if ($nCM != 1) { return 0; }
+  $cModel = $rels[0]['object']['value'];
+
+  // Create new derivatives.
+  $logging_results = islandora_do_derivatives($object, array(
+    'source_dsid' => $dsid, 'force' => TRUE ));
+  islandora_derivative_logging($logging_results);
+  $count++;
+
+  /*
+  switch ($cModel) {
+    case 'islandora:sp_basic_image' :
+      if (module_exists('islandora_basic_image')) {
+        if ($only === '*' || $only === "TN") {
+          islandora_basic_image_create_thumbnail($object, TRUE);
+          $count++;
+        }
+        if ($only === '*' || $only === "MEDIUM_SIZE") {
+          islandora_basic_image_create_medium_size($object, TRUE);
+          $count++;
+        }
+      }
+      if (module_exists('islandora_fits') && ($only === '*' || $only === "TECHMD")) {
+        $fit = islandora_fits_create_techmd($object, TRUE, array('source_dsid'=>'OBJ'));
+        if ($fit['success']) { ++$count; }
+      }
+      break;
+    case 'islandora:pageCModel' :
+    case 'islandora:sp_large_image_cmodel' :
+      if (module_exists('islandora_large_image')) {
+        if ($only === '*' || $only === "TN") {
+          islandora_large_image_create_tn_derivative($object, TRUE);
+          $count++;
+        }
+        if ($only === '*' || $only === "JPG") {
+          islandora_large_image_create_jpg_derivative($object, TRUE);
+          $count++;
+        }
+        if ($only === '*' || $only === "JP2") {
+          islandora_large_image_create_jp2_derivative($object, TRUE);
+          $count++;
+        }
+      }
+      if (module_exists('islandora_fits') && ($only === '*' || $only === "TECHMD")) {
+        $fit = islandora_fits_create_techmd($object, TRUE, array('source_dsid'=>'OBJ'));
+        if ($fit['success']) { ++$count; }
+      }
+      break;
+    case 'islandora:sp_pdf' :
+      if (module_exists('islandora_pdf')) {
+        if ($only === '*' || $only === "FULL_TEXT") {
+          islandora_pdf_add_fulltext_derivative($object, TRUE);
+          $count++;
+        }
+        if ($only === '*' || $only === "PREVIEW") {
+          islandora_pdf_add_preview_derivative($object, TRUE);
+          $count++;
+        }
+        if ($only === '*' || $only === "TN") {
+          islandora_pdf_add_tn_derivative($object, TRUE);
+          $count++;
+        }
+      }
+      if (module_exists('islandora_fits') && ($only === '*' || $only === "TECHMD")) {
+        $fit = islandora_fits_create_techmd($object, TRUE, array('source_dsid'=>'OBJ'));
+        if ($fit['success']) { ++$count; }
+      }
+      break;
+    case 'islandora:sp-audioCModel' :
+      if (module_exists('islandora_audio')) {
+        if ($only === '*' || $only === "TN") {
+          islandora_audio_create_thumbnail($object, TRUE);
+          $count++;
+        }
+        if ($only === '*' || $only === 'PROXY_MP3' ) {
+          islandora_audio_create_mp3($object, TRUE);
+          $count++;
+        }
+      }
+      if (module_exists('islandora_fits') && ($only === '*' || $only === "TECHMD")) {
+        $fit = islandora_fits_create_techmd($object, TRUE, array('source_dsid'=>'OBJ'));
+        if ($fit['success']) { ++$count; }
+      }
+      break;
+  } */
+
+  return $count;
+ }
+
 
 /**
  * Drush idu_fix_* function to re-index an existing object in Solr.
@@ -828,6 +959,80 @@ function idu_drush_fix_Purge($pid, $options=NULL) {
   }
 
   return 1;
+}
+
+
+/**
+ * Drush idu_fix_* function to remove empty cue elements from a specified
+ * object's MODS datastream.
+ *
+ * Invoke this function with an iduF process using a command of the form:
+ *   drush iduF <pids> RemoveEmptyCues
+ *
+ * @param string $pid
+ *   The PID (from the list of first-to-last) to operate on.
+ * @return int
+ *   The number of empty elements removed, or zero if none.
+ */
+function idu_drush_fix_RemoveEmptyCues($pid) {
+
+  // For any exception, report and skip this PID
+  if (!$object = _idu_Repository()->getObject($pid)) {
+    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+    return 0;
+  }
+
+  // Fetch options.
+  $dsid = drush_get_option('dsid', 'TRANSCRIPT');
+  $dryRun = drush_get_option('dryRun', FALSE);
+
+  // Check that this is an Oral History object.
+  $isOH = FALSE;
+
+  $models = $object->relationships->get(FEDORA_MODEL_URI, 'hasModel');
+  foreach ($models as $model) {
+    $CModel = $model['object']['value'];
+    if ($CModel === 'islandora:oralhistoriesCModel') {
+      $isOH = TRUE;
+    };
+  }
+  if (!$isOH) { return 0; }
+
+  $total = $cnt = $count = 0;
+  $label = $object->label;
+
+  // Open the TRANSCRIPT datastream and remove any empty cues.
+  $ds = $object[$dsid];
+  if ($content = $ds->content) {
+    $xml = new DOMDocument;
+    $xml->loadXML($content);
+    $dx = new DOMXPath($xml);
+    $parents = $dx->query('/cues');
+    foreach ($parents as $parent) {
+      $cues = $dx->query('/cues/cue');
+      foreach ($cues as $cue) {
+        $isEmpty = $cue->childNodes->length === 0;
+        if ($isEmpty) {
+          $cue->parentNode->removeChild($cue);
+          $content = $xml->saveXML();
+          $count += 1;
+        }
+      }
+    }
+  }
+
+  if ($count > 0 && !$dryRun) {
+    $ds->setContentFromString($xml->saveXML());
+
+    try {
+      $object->ingestDatastream($ds);
+    } catch (Exception $e) {
+      echo 'Caught exception: ', $e->getMessage(), "\n";
+    }
+    $status = idu_drush_update_solr_index($pid);
+  }
+
+  return $count;
 }
 
 
@@ -1226,3 +1431,4 @@ function idu_drush_post_to_file($comment, $command, $path=NULL) {
 @include_once 'sites/all/libraries/tuque/RepositoryException.php';
 @include_once 'sites/all/libraries/tuque/Repository.php';
 @include_once 'sites/all/libraries/tuque/FedoraRelationships.php';
+
