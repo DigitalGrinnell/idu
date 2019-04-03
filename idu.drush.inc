@@ -19,6 +19,7 @@
  */
 function iduF_validate($fix) {
   $verified = array(                // $verified holds the verification/availability status of iduF commands.
+    'ChangeText' => '3-Apr-2019',
     'Derivatives' => '10-Mar-2019',
     'IndexSolr' => '10-Mar-2019',
     'Purge' => '10-Mar-2019',
@@ -462,7 +463,7 @@ function idu_drush_prep($first, &$last, &$pidn, &$range, &$namespace) {
 
   $pids = icu_drush_prep($first, $lastPID, $pidn, $range, $namespace, $after, $collection, $contentType, $created);
 
-  list($ns, $last) = explode(':', $lastPID);
+  // list($ns, $last) = explode(':', $lastPID);
   return $pids;
 }
 
@@ -757,6 +758,126 @@ function _idu_Repository() {
 /****************************************************************************************************
  * Drush iduF (Fix) command functions follow here in alphabetical order.
 *****************************************************************************************************/
+
+/**
+* Drush idu_fix_* function to change the text of elements in the target datastream and xpath.
+*
+* Invoke this function via iduF and the 'ChangeText' operation parameter.  Something like this...
+*
+*   drush iduF grinnell:501 ChangeText --substitutionsFile="public://findReplace.csv" --dsid=MODS --xpath="/mods/description/identifier[@type='uri']
+*
+* Applicable options include the following:
+*
+*   --substitutionsFile=<file path>  If this option is specified then --find and --replace are ignored and
+*       pairs of find, replace CSV strings are pulled instead from the named file.  Default is NULL.
+*
+*   --find=<string>  If this option is specified, and --substitutionsFile is not, then the specified string
+*       is searched for in the target datastreams and replaced with values specified in --replace.
+*
+*   --replace=<string>  See --find above.
+*
+*   --dsid=<string>  This option specifies the ID of the datastream to be operated on in each object.
+*
+*   --xpath=<string>  This option, if present, specifies an xpath used to query the target datastream.  If specified,
+*       find => replace operations are restricted to the value returned by the xpath, so only the text() value of
+*       the xpath can be changed.  If --xpath is omitted it defaults to NULL and this specifies that the entire
+*       datastream be treated as a string and find => replace then operates on it as a string.  You can effectively
+*       alter the ‘structure’ of a datastream in this mode so BE VERY CAREFUL!
+*
+* @param string $pid
+*   The PID to operate on.
+* @param array $options
+*   An array of options.  In this case $options['findReplace'] should carry an associative array
+*   with one or more find => replace pairs.
+* @return int
+*   The number of repair operations performed, or zero if none.
+*/
+function idu_drush_fix_ChangeText($pid, $options) {
+
+  // For any exception, report and skip this PID
+  if (!$object = _idu_Repository()->getObject($pid)) {
+    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+    return 0;
+  }
+
+  // Get the pre-processed find and replace options.
+  $findReplace = $options['findReplace'];
+
+  // Check for other options...
+  $dsid = drush_get_option('dsid', 'MODS');
+  $xpath = drush_get_option('xpath', NULL);
+  $dryRun = drush_get_option('dryRun', FALSE);
+
+  $total = $cnt = $count = 0;
+  $label = $object->label;
+
+  // If --dsid=LABEL then this find/replace is with respect to the object's Label...
+  if ($dsid === 'LABEL') {
+    foreach ($findReplace as $from => $to) {
+      if ($from === "0xC") {   // if $from is hex 0xC, replace with a space.
+        $from = chr(12);
+        $to = ' ';
+      }
+
+      if (stripos("_$label", $from)) {
+        $label = str_replace($from, $to, $label, $cnt);
+        $count += $cnt;
+        $label = ltrim($label, "_");
+      }
+    }
+
+  // Otherwise, open the specified datastream and go to work...
+  } else if ($ds = $object[$dsid]) {
+    $content = $ds->content;
+
+    foreach ($findReplace as $from => $to) {
+      if ($from === "0xC") {   // if $from is hex 0xC, replace with a space.
+        $from = chr(12);
+        $to = ' ';
+      }
+
+      if (stripos($content, $from)) {
+        if (is_null($xpath)) {
+          $content = str_replace($from, $to, $content, $cnt);
+          $count += $cnt;
+        }
+        else {
+          $xml = new DOMDocument;
+          $xml->loadXML($content);
+          $dx = new DOMXPath($xml);
+          $results = $dx->query($xpath);
+          foreach ($results as $node) {
+            $value = (string) $node->nodeValue;
+            if (strpos(' ' . $value, $from)) {
+              $node->nodeValue = str_replace($from, $to, $value, $cnt);
+              $count += $cnt;
+              $content = $xml->saveXML();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if ($count > 0) {
+    $msg = "iduFix - ChangeText: $count changes.";
+    if ($dryRun) {
+      idu_drush_log($msg." NO changes committed for object $pid due to the --dryRun option.", 'status');
+      idu_drush_post_to_file($msg." NO changes committed for object $pid due to the --dryRun option.", NULL, 'public://iduFix_progress.log');
+    } else if ($dsid === 'LABEL') {
+      $total += $count;
+      $object->label = $label;
+      idu_drush_post_to_file("iduFix - ChangeText: $count changes committed for object $pid's label.", NULL, 'public://iduFix_progress.log');
+    } else {
+      $total += $count;
+      $object[$dsid]->setContentFromString($content);
+      idu_drush_post_to_file("iduFix - ChangeText: $count changes committed for object $pid.", NULL, 'public://iduFix_progress.log');
+    }
+  }
+
+  return $total;
+}
+
 
 
  /**
@@ -1431,4 +1552,3 @@ function idu_drush_post_to_file($comment, $command, $path=NULL) {
 @include_once 'sites/all/libraries/tuque/RepositoryException.php';
 @include_once 'sites/all/libraries/tuque/Repository.php';
 @include_once 'sites/all/libraries/tuque/FedoraRelationships.php';
-
