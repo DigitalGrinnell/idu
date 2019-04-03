@@ -22,6 +22,7 @@ function iduF_validate($fix) {
     'ChangeText' => '3-Apr-2019',
     'Derivatives' => '10-Mar-2019',
     'IndexSolr' => '10-Mar-2019',
+    'MigrateObject' => '3-Apr-2019',
     'Purge' => '10-Mar-2019',
     'RemoveEmptyCues' => '18-Mar-2019',
   );
@@ -1047,6 +1048,59 @@ function idu_drush_fix_IndexSolr($pid) {
     return 0;
   }
 }
+
+
+/**
+* Drush idu_fix_* function to migrate (move) an object from one collection to another.
+*
+* Invoke this function via iduF and the 'MigrateObject' operation parameter.  Something like this...
+*
+*   drush iduF grinnell:4937 MigrateObject --source=grinnell:pending-review-suppressed --collection=grinnell:test
+*
+* @param string $pid
+*   The PID to operate on.
+* @param array $options
+*   An array of passed options.
+* @return int
+*   The number of repair operations performed, or zero if none.
+*/
+function idu_drush_fix_MigrateObject($pid, $options) {
+
+ // For any exception, report and skip this PID
+ if (!$object = _idu_Repository()->getObject($pid)) {
+   idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+   return 0;
+ }
+
+ if (!$source = drush_get_option('source', False)) {
+   idu_drush_log('This command requires a --source option!', 'error');
+   return 0;
+ }
+
+ if (!$dest = drush_get_option('replace', False)) {
+   idu_drush_log('This command requires a --replace (destination) option!', 'error');
+   return 0;
+ }
+
+ $dryRun = drush_get_option('dryRun', False);
+
+ if ($rels = $object->relationships->get(FEDORA_RELS_EXT_URI, 'isMemberOfCollection')) {
+   foreach ($rels as $rel) {
+     $r = $rel['object']['value'];
+     if ($r === $source && !$dryRun) {
+       $object->relationships->remove(FEDORA_RELS_EXT_URI, 'isMemberOfCollection');
+       $object->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $dest);
+       return 1;
+     } else {
+       idu_drush_log("Object '$pid', part of collection '$r' did NOT migrate due to conflict or --dryRun.", 'warning');
+     }
+   }
+ }
+ return 0;
+}
+
+
+
 
 
 /**
