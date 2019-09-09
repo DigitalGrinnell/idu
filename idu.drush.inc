@@ -19,8 +19,10 @@
  */
 function iduF_validate($fix) {
   $verified = array(                // $verified holds the verification/availability status of iduF commands.
+    'ChangeText' => '3-Apr-2019',
     'Derivatives' => '10-Mar-2019',
     'IndexSolr' => '10-Mar-2019',
+    'MigrateObject' => '3-Apr-2019',
     'Purge' => '10-Mar-2019',
     'RemoveEmptyCues' => '18-Mar-2019',
   );
@@ -462,7 +464,7 @@ function idu_drush_prep($first, &$last, &$pidn, &$range, &$namespace) {
 
   $pids = icu_drush_prep($first, $lastPID, $pidn, $range, $namespace, $after, $collection, $contentType, $created);
 
-  list($ns, $last) = explode(':', $lastPID);
+  // list($ns, $last) = explode(':', $lastPID);
   return $pids;
 }
 
@@ -752,11 +754,240 @@ function _idu_Repository() {
   return $repository;
 }
 
+/****************************************************************************************************
+ * Drush iduH (Handle) command functions follow here in alphabetical order.
+*****************************************************************************************************/
+
+/**
+ * Callback function for drush iduHandle, alias iduH.
+ *
+ * This callback runs the prescribed Handle command for a given PID with an optional --repeat
+ * to touch subsequent objects in the same namespace.  Functions called must be of the form...
+ *     $count = drush_idu_handle_OPERATION($pid);
+ *
+ * @param string $first
+ *   First PID to process.
+ * @param string $handle_op
+ *   The Handle operation to be performed.  This string completes the name of an existing idu_drush_handle_* function.
+ */
+function drush_idu_iduHandle($first, $handle_op) {
+  // Get the Handle operation parameter...
+  $function = 'idu_drush_Handle_'.$handle_op;
+  if (!function_exists($function)) { drush_log("The specified Handle function '$function' does not exist!", 'error'); }
+  if (!$pids = idu_drush_prep($first, $last, $pidn, $range, $ns, TRUE)) { return; }     // Get the PIDs and initialize the loop...
+  idu_drush_print_progress("iduHandle - $handle_op");
+  $count = 0;
+  // If there's only one PID... process it.
+  if (count($pids) === 1) {
+    $count += call_user_func($function, $pids[0]);
+    idu_drush_post_to_file("iduHandle - $handle_op: $pids[0] complete.", NULL, 'public://iduHandle_progress.log');
+    idu_drush_print_progress("iduHandle - $handle_op", 0, 1);
+    // Operate on a range of PID numbers.
+  } else {
+    $i = 0;
+    foreach ($pids as $pid) {
+      $count += call_user_func($function, $pid);
+      idu_drush_post_to_file("iduHandle - $handle_op: $pid complete.", NULL, 'public://iduHandle_progress.log');
+      idu_drush_print_progress("iduHandle - $handle_op", $i, $range);
+    }
+  }
+  // Done.
+  $finish = date('H:i:s');
+  idu_drush_log("Completed $count 'iduHandle - $handle_op' operations at $finish. \n", 'status');
+  // If one or more handles were created there should be a batch file to process.  Do that now.
+  if ($count > 0) {
+    $fileName = 'temporary://'.H_BATCH;
+    $logFile = 'temporary://'.H_LOG;
+    if (!file_exists($fileName)) { die("Could not find existing batch file $fileName!  "); }
+    if (!$file = fopen($fileName, 'r')) { die("Could not open existing batch file $fileName to read!  "); }
+    $path = drupal_realpath($fileName);
+    $log = drupal_realpath($logFile);
+    // Build a call to the batch file and run it.
+    $output = array( );
+    $command = H_BINDIR."/hdl-genericbatch $path $log.tmp -verbose";
+    exec($command, $output, $return_status);
+    // Keep a timestamped copy of the log file.
+    if (file_exists("$log.tmp")) {
+      $newLog = 'temporary://'.H_LOG.time( );
+      file_put_contents($newLog, file_get_contents($log));
+      file_put_contents($newLog, file_get_contents("$log.tmp"), FILE_APPEND);
+      idu_drush_log("Batch call to the Handle System is complete. A copy of the composite log file is stored in '$newLog'.", 'status');
+    } else {
+      idu_drush_log("Batch call to the Handle System is complete but no log file was generated?", 'error');
+    }
+  }
+// Delete the temporary batch command file and log file.
+if (file_exists($fileName)) { unlink($fileName); }
+  if (file_exists($logFile)) { unlink($logFile); }
+  if (file_exists("$log.tmp")) { unlink("$log.tmp"); }
+  // Done.
+  $finish = date('H:i:s');
+  idu_drush_log("Completed $count 'iduHandle - $handle_op' operations at $finish. \n", 'status');
+}
+
+/*
+ * Drush iduH (Handle) command functions follow here in alphabetical order.
+ */
+
+/**
+ * idu_drush_Handle_Create($pid);
+ *
+ * Generates a 'generic batch' command file for the creation/assignment of one Handle for object $pid.
+ *
+ * The file will be created and run in H_SVRDIR as H_BATCH (see constants.inc in the idu module).
+ */
+function idu_drush_Handle_Create($pid) {
+  // For any exception, report and skip this PID
+  if (!$object = _idu_Repository()->getObject($pid)) {
+    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+    return 0;
+  }
+  $force = drush_get_option('force', FALSE);
+  return idu_handle_create_or_modify($object, 'CREATE', $force);
+}
+
+/**
+ * idu_drush_Handle_Modify($pid);
+ *
+ * Generates a 'generic batch' command file to modify and assign the Handle identifier for object $pid.
+ *
+ * The file will be created and run in H_SVRDIR as H_BATCH (see constants.inc in the idu module).
+ */
+function idu_drush_Handle_Modify($pid) {
+  // For any exception, report and skip this PID
+  if (!$object = _idu_Repository()->getObject($pid)) {
+    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+    return 0;
+  }
+  $force = drush_get_option('force', FALSE);
+  return idu_handle_create_or_modify($object, 'MODIFY', $force);
+}
+
 
 
 /****************************************************************************************************
  * Drush iduF (Fix) command functions follow here in alphabetical order.
 *****************************************************************************************************/
+
+/**
+* Drush idu_fix_* function to change the text of elements in the target datastream and xpath.
+*
+* Invoke this function via iduF and the 'ChangeText' operation parameter.  Something like this...
+*
+*   drush iduF grinnell:501 ChangeText --substitutionsFile="public://findReplace.csv" --dsid=MODS --xpath="/mods/description/identifier[@type='uri']
+*
+* Applicable options include the following:
+*
+*   --substitutionsFile=<file path>  If this option is specified then --find and --replace are ignored and
+*       pairs of find, replace CSV strings are pulled instead from the named file.  Default is NULL.
+*
+*   --find=<string>  If this option is specified, and --substitutionsFile is not, then the specified string
+*       is searched for in the target datastreams and replaced with values specified in --replace.
+*
+*   --replace=<string>  See --find above.
+*
+*   --dsid=<string>  This option specifies the ID of the datastream to be operated on in each object.
+*
+*   --xpath=<string>  This option, if present, specifies an xpath used to query the target datastream.  If specified,
+*       find => replace operations are restricted to the value returned by the xpath, so only the text() value of
+*       the xpath can be changed.  If --xpath is omitted it defaults to NULL and this specifies that the entire
+*       datastream be treated as a string and find => replace then operates on it as a string.  You can effectively
+*       alter the ‘structure’ of a datastream in this mode so BE VERY CAREFUL!
+*
+* @param string $pid
+*   The PID to operate on.
+* @param array $options
+*   An array of options.  In this case $options['findReplace'] should carry an associative array
+*   with one or more find => replace pairs.
+* @return int
+*   The number of repair operations performed, or zero if none.
+*/
+function idu_drush_fix_ChangeText($pid, $options) {
+
+  // For any exception, report and skip this PID
+  if (!$object = _idu_Repository()->getObject($pid)) {
+    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+    return 0;
+  }
+
+  // Get the pre-processed find and replace options.
+  $findReplace = $options['findReplace'];
+
+  // Check for other options...
+  $dsid = drush_get_option('dsid', 'MODS');
+  $xpath = drush_get_option('xpath', NULL);
+  $dryRun = drush_get_option('dryRun', FALSE);
+
+  $total = $cnt = $count = 0;
+  $label = $object->label;
+
+  // If --dsid=LABEL then this find/replace is with respect to the object's Label...
+  if ($dsid === 'LABEL') {
+    foreach ($findReplace as $from => $to) {
+      if ($from === "0xC") {   // if $from is hex 0xC, replace with a space.
+        $from = chr(12);
+        $to = ' ';
+      }
+
+      if (stripos("_$label", $from)) {
+        $label = str_replace($from, $to, $label, $cnt);
+        $count += $cnt;
+        $label = ltrim($label, "_");
+      }
+    }
+
+  // Otherwise, open the specified datastream and go to work...
+  } else if ($ds = $object[$dsid]) {
+    $content = $ds->content;
+
+    foreach ($findReplace as $from => $to) {
+      if ($from === "0xC") {   // if $from is hex 0xC, replace with a space.
+        $from = chr(12);
+        $to = ' ';
+      }
+
+      if (stripos($content, $from)) {
+        if (is_null($xpath)) {
+          $content = str_replace($from, $to, $content, $cnt);
+          $count += $cnt;
+        }
+        else {
+          $xml = new DOMDocument;
+          $xml->loadXML($content);
+          $dx = new DOMXPath($xml);
+          $results = $dx->query($xpath);
+          foreach ($results as $node) {
+            $value = (string) $node->nodeValue;
+            if (strpos(' ' . $value, $from)) {
+              $node->nodeValue = str_replace($from, $to, $value, $cnt);
+              $count += $cnt;
+              $content = $xml->saveXML();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if ($count > 0) {
+    $msg = "iduFix - ChangeText: $count changes.";
+    if ($dryRun) {
+      idu_drush_log($msg." NO changes committed for object $pid due to the --dryRun option.", 'status');
+      idu_drush_post_to_file($msg." NO changes committed for object $pid due to the --dryRun option.", NULL, 'public://iduFix_progress.log');
+    } else if ($dsid === 'LABEL') {
+      $total += $count;
+      $object->label = $label;
+      idu_drush_post_to_file("iduFix - ChangeText: $count changes committed for object $pid's label.", NULL, 'public://iduFix_progress.log');
+    } else {
+      $total += $count;
+      $object[$dsid]->setContentFromString($content);
+      idu_drush_post_to_file("iduFix - ChangeText: $count changes committed for object $pid.", NULL, 'public://iduFix_progress.log');
+    }
+  }
+
+  return $total;
+}
+
 
 
  /**
@@ -770,6 +1001,7 @@ function _idu_Repository() {
  *   The number of repair operations performed, or zero if none.
  */
  function idu_drush_fix_Derivatives($pid) {
+   module_load_include('inc', 'islandora', 'includes/derivatives');
 
    // For any exception, report and skip this PID
    if (!$object = _idu_Repository()->getObject($pid)) {
@@ -926,6 +1158,59 @@ function idu_drush_fix_IndexSolr($pid) {
     return 0;
   }
 }
+
+
+/**
+* Drush idu_fix_* function to migrate (move) an object from one collection to another.
+*
+* Invoke this function via iduF and the 'MigrateObject' operation parameter.  Something like this...
+*
+*   drush iduF grinnell:4937 MigrateObject --source=grinnell:pending-review-suppressed --collection=grinnell:test
+*
+* @param string $pid
+*   The PID to operate on.
+* @param array $options
+*   An array of passed options.
+* @return int
+*   The number of repair operations performed, or zero if none.
+*/
+function idu_drush_fix_MigrateObject($pid, $options) {
+
+ // For any exception, report and skip this PID
+ if (!$object = _idu_Repository()->getObject($pid)) {
+   idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+   return 0;
+ }
+
+ if (!$source = drush_get_option('source', False)) {
+   idu_drush_log('This command requires a --source option!', 'error');
+   return 0;
+ }
+
+ if (!$dest = drush_get_option('replace', False)) {
+   idu_drush_log('This command requires a --replace (destination) option!', 'error');
+   return 0;
+ }
+
+ $dryRun = drush_get_option('dryRun', False);
+
+ if ($rels = $object->relationships->get(FEDORA_RELS_EXT_URI, 'isMemberOfCollection')) {
+   foreach ($rels as $rel) {
+     $r = $rel['object']['value'];
+     if ($r === $source && !$dryRun) {
+       $object->relationships->remove(FEDORA_RELS_EXT_URI, 'isMemberOfCollection');
+       $object->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $dest);
+       return 1;
+     } else {
+       idu_drush_log("Object '$pid', part of collection '$r' did NOT migrate due to conflict or --dryRun.", 'warning');
+     }
+   }
+ }
+ return 0;
+}
+
+
+
 
 
 /**
@@ -1431,4 +1716,3 @@ function idu_drush_post_to_file($comment, $command, $path=NULL) {
 @include_once 'sites/all/libraries/tuque/RepositoryException.php';
 @include_once 'sites/all/libraries/tuque/Repository.php';
 @include_once 'sites/all/libraries/tuque/FedoraRelationships.php';
-
