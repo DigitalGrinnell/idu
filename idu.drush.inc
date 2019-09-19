@@ -794,6 +794,7 @@ function drush_idu_iduHandle($first, $handle_op) {
   // Done.
   $finish = date('H:i:s');
   idu_drush_log("Completed $count 'iduHandle - $handle_op' operations at $finish. \n", 'status');
+
   // If one or more handles were created there should be a batch file to process.  Do that now.
   if ($count > 0) {
     $fileName = 'temporary://'.H_BATCH;
@@ -802,24 +803,29 @@ function drush_idu_iduHandle($first, $handle_op) {
     if (!$file = fopen($fileName, 'r')) { die("Could not open existing batch file $fileName to read!  "); }
     $path = drupal_realpath($fileName);
     $log = drupal_realpath($logFile);
+
     // Build a call to the batch file and run it.
     $output = array( );
     $command = H_BINDIR."/hdl-genericbatch $path $log.tmp -verbose";
+    idu_drush_log("Handle batch command is: '$command'. \n", 'status');
     exec($command, $output, $return_status);
+
     // Keep a timestamped copy of the log file.
     if (file_exists("$log.tmp")) {
       $newLog = 'temporary://'.H_LOG.time( );
       file_put_contents($newLog, file_get_contents($log));
       file_put_contents($newLog, file_get_contents("$log.tmp"), FILE_APPEND);
       idu_drush_log("Batch call to the Handle System is complete. A copy of the composite log file is stored in '$newLog'.", 'status');
+
+      // Delete the temporary batch command file and log file.
+      if (file_exists($fileName)) { unlink($fileName); }
+      if (file_exists($logFile)) { unlink($logFile); }
+      if (file_exists("$log.tmp")) { unlink("$log.tmp"); }
     } else {
       idu_drush_log("Batch call to the Handle System is complete but no log file was generated?", 'error');
     }
   }
-// Delete the temporary batch command file and log file.
-if (file_exists($fileName)) { unlink($fileName); }
-  if (file_exists($logFile)) { unlink($logFile); }
-  if (file_exists("$log.tmp")) { unlink("$log.tmp"); }
+
   // Done.
   $finish = date('H:i:s');
   idu_drush_log("Completed $count 'iduHandle - $handle_op' operations at $finish. \n", 'status');
