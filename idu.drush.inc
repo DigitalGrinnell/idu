@@ -25,6 +25,7 @@ function iduF_validate($fix) {
     'MigrateObject' => '3-Apr-2019',
     'Purge' => '10-Mar-2019',
     'RemoveEmptyCues' => '18-Mar-2019',
+    'SelfTransform' => '10-Sep-2019',
   );
 
   if (!key_exists($fix, $verified)) {
@@ -1326,6 +1327,82 @@ function idu_drush_fix_RemoveEmptyCues($pid) {
   return $count;
 }
 
+/**
+ * Drush idu_fix_* function to apply a specified self-transform existing object datastream.
+ *
+ * Invoke this function with an iduF process using a command of the form:
+ *   drush iduF first SelfTransform
+ *
+ * Applicable options are:
+ *   --self=<path to the self-transform XSL file>  Defaults to public://cleanup_mods.xsl.
+ *   --dsid=The target datastream ID such as 'MODS', 'MADS' or 'DC'.  Defaults to 'MODS'.
+ *   --reorder=If present and dsid=MODS, this option runs public://reorder_mods.xsl against the result.
+ *
+ * @param string $pid
+ *   The PID (from the list of first-to-last) to operate on.
+ * @return int
+ *   The number of repair operations performed, or zero if none.
+ */
+function idu_drush_fix_SelfTransform($pid) {
+
+  // For any exception, report and skip this PID
+  if (!$object = _idu_Repository()->getObject($pid)) {
+    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+    return 0;
+  }
+
+  // Check that the specified datastream exists... if not, we're done.
+  $dsid = drush_get_option('dsid', 'MODS');
+
+  if (!$ds = $object[$dsid]) {
+    idu_drush_log(__FUNCTION__."($pid) The specified $dsid datastream does not exist!", 'warning');
+    return 0;
+; }
+
+  // Get the specified self-transform.
+  $xsl = new DOMDocument( );
+  $transform = drush_get_option('self', 'public://cleanup_mods.xsl');
+  if (!$xsl->load($transform)) { die("Failed to load Transform file '$transform!'"); }
+  $xslt = new XSLTProcessor( );
+  $xslt->importStyleSheet($xsl);
+
+  /* Make a new backup datastream copy.  Assume it is a text/xml DS.   MAM - No need for this,
+    it is creating far too many datastream copies!
+  $replace = $dsid . "_" . date('U');
+  $newDS = idu_copy_datastream($object, $dsid, 'text/xml', 'X', $replace);
+  $object->ingestDatastream($newDS); */
+
+
+  // Apply the transform to the $ds content.
+  $document = DOMDocument::loadXml($object[$dsid]->content);
+  if ($doc = $xslt->transformToDoc($document)) {
+    $after = $doc->saveXML();
+    $object[$dsid]->setContentFromString($after);
+  }
+
+  // Check if the --reorder option is present.
+  $reorder = drush_get_option('reorder', null);
+  if (!is_null($reorder) && $dsid==='MODS') {
+    $xsl = new DOMDocument( );
+    $transform = drush_get_option('self', 'public://reorder_mods.xsl');
+    if (!$xsl->load($transform)) { die("Failed to load Transform file '$transform!'"); }
+    $xslt = new XSLTProcessor( );
+    $xslt->importStyleSheet($xsl);
+
+    // Apply it to the $ds content.
+    $document = DOMDocument::loadXml($object[$dsid]->content);
+    if ($doc = $xslt->transformToDoc($document)) {
+      $after = $doc->saveXML();
+      $object[$dsid]->setContentFromString($after);
+    }
+  }
+
+  // Re-index this object in Solr.
+  idu_drush_update_solr_index($pid);
+
+  return 1;
+}
+
 
 /* Helper functions ---------------------------------------------------------------------------- */
 
@@ -1357,6 +1434,7 @@ function icu_drush_command( ) {
   );
   return $items;
 }
+
 /**
  * Drush callback function for the 'drush icuC' command.
  *
