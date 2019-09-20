@@ -1785,6 +1785,37 @@ function idu_drush_post_to_file($comment, $command, $path=NULL) {
   }
 }
 
+/**
+ * Returns an array of MIME types for known, non-original content datastreams.
+ *
+ * @return array
+ */
+function icu_DSMimes( ) {
+  static $ds = array( 'RELS-EXT' => 'application/rdf+xml',
+    'DC' => 'text/xml',
+    'MODS' => 'text/xml',
+    'RELS-INT' => 'application/rdf+xml',
+    'TN' => 'image/jpeg',
+    'POLICY' => 'text/xml',
+    'PREVIEW' => 'image/jpeg',
+    'JPG' => 'image/jpeg',
+    'JP2' => 'image/jp2',
+    'MEDIUM_SIZE' => 'image/jpeg',
+    'FULL_TEXT' => 'text/plain',
+    'OCR' => 'text/plain',
+    'RAW_HOCR' => 'text/xml',
+    'HOCR' => 'text/html',
+    'ENCODED_OCR' => 'text/xml',
+    'islandora_workflow' => 'text/xml',
+    'OriginalDC' => 'text/xml',
+    'PROXY_MP3' => 'audio/mpeg',
+    'MP4' => 'video/mp4',
+  );
+  return $ds;
+}
+
+
+
 /*
 @TODO... Fix this!
 */
