@@ -204,8 +204,8 @@ function idu_drush_command( ) {
           --sibling PID.
 
       MigrateObject -
-        Migrates an object from its --source collection to --replace.
-          [Verified 31-Aug-2018]
+        Migrates an object from its --source (or --source=None) collection
+          to --replace. [Verified 31-Aug-2018]
 
       MIMEFix -
         Changes errant object MIME types from --find to --replace.
@@ -1174,6 +1174,8 @@ function idu_drush_fix_IndexSolr($pid) {
 *
 *   drush iduF grinnell:4937 MigrateObject --source=grinnell:pending-review-suppressed --collection=grinnell:test
 *
+*   Use --source=None to catch objects that are orphaned and not part of ANY collection.
+*
 * @param string $pid
 *   The PID to operate on.
 * @param array $options
@@ -1206,6 +1208,9 @@ function idu_drush_fix_MigrateObject($pid, $options) {
      $r = $rel['object']['value'];
      if ($r === $source && !$dryRun) {
        $object->relationships->remove(FEDORA_RELS_EXT_URI, 'isMemberOfCollection');
+       $object->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $dest);
+       return 1;
+     } elseif (!$r && ($source == "None") && !$dryRun) {
        $object->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $dest);
        return 1;
      } else {
