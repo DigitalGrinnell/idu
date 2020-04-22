@@ -20,7 +20,6 @@
 function iduF_validate($fix) {
   $verified = array(                // $verified holds the verification/availability status of iduF commands.
     'ChangeText' => '3-Apr-2019',
-    'CompoundTN' => '25-Oct-2019',
     'Derivatives' => '10-Mar-2019',
     'IndexSolr' => '10-Mar-2019',
     'MigrateObject' => '3-Apr-2019',
@@ -205,8 +204,8 @@ function idu_drush_command( ) {
           --sibling PID.
 
       MigrateObject -
-        Migrates an object from its --source (or --source=None) collection
-          to --replace. [Verified 31-Aug-2018]
+        Migrates an object from its --source collection to --replace.
+          [Verified 31-Aug-2018]
 
       MIMEFix -
         Changes errant object MIME types from --find to --replace.
@@ -1175,8 +1174,6 @@ function idu_drush_fix_IndexSolr($pid) {
 *
 *   drush iduF grinnell:4937 MigrateObject --source=grinnell:pending-review-suppressed --collection=grinnell:test
 *
-*   Use --source=None to catch objects that are orphaned and not part of ANY collection.
-*
 * @param string $pid
 *   The PID to operate on.
 * @param array $options
@@ -1211,21 +1208,10 @@ function idu_drush_fix_MigrateObject($pid, $options) {
        $object->relationships->remove(FEDORA_RELS_EXT_URI, 'isMemberOfCollection');
        $object->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $dest);
        return 1;
-     } elseif (!$r && ($source == "None") && !$dryRun) {
-       $object->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $dest);
-       return 1;
      } else {
        idu_drush_log("Object '$pid', part of collection '$r' did NOT migrate due to conflict or --dryRun.", 'warning');
      }
    }
- } elseif ($source == "None") {
-   idu_drush_log("Found object '$pid' orphaned with NO parent collection.", 'warning');
-   if (!$dryRun) {
-     $object->relationships->add(FEDORA_RELS_EXT_URI, 'isMemberOfCollection', $dest);
-   } else {
-     idu_drush_log("Orhphaned object '$pid' did NOT migrate due to --dryRun.", 'warning');
-   }
-   return 1;
  }
  return 0;
 }
@@ -1415,127 +1401,6 @@ function idu_drush_fix_SelfTransform($pid) {
   idu_drush_update_solr_index($pid);
 
   return 1;
-}
-
-
-/**
- * Drush idu_fix_* function to create a replacement TN datastream for
- * a compound parent.
- *
- * This function uses ImageMagick 'montage' to create a new datastream from the TN
- * datastreams of up to 4 child objects.
- *
- * Invoke this function using iduF <pid> CompoundTN.
- *
- * @param string $pid
- *   The object PID to operate on.
- * @return int
- *   The number of CompoundTN operations performed, or zero if none.
- */
-function idu_drush_fix_CompoundTN($pid, $preOpts=NULL) {
-
-  // For any exception, report and skip this PID
-  if (!$object = _idu_Repository()->getObject($pid)) {
-    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
-    return 0;
-  }
-
-  // Get a list of all the child objects.
-  $children = islandora_compound_object_get_parts($object->id);
-  if (empty($children)) {
-    // drush_log("Object $pid has NO children!", 'warning');
-    return 0;
-  }
-
-  // Check for --convert option.
-  $convert = drush_get_option('convert', NULL);
-
-  // If --convert is present, read options from the specified file and build a string of arguments.
-  if ($convert) {
-    $handle = fopen($convert, "r");
-    $options = "";
-    if ($handle) {
-      while (($line = fgets($handle)) !== FALSE) {
-        $options .= trim($line) . ' ';
-      }
-    }
-    else {
-      idu_drush_log("Cannot open the options file '$convert'!", 'error');
-      return 0;
-    }
-    fclose($handle);
-  }
-
-  $dsid = 'TN';
-  // $dsid = 'CompoundTN';    MAM changed to TN on 18-Dec-2015
-
-  // Build a list of the child TN datastreams to build the new image from.
-  $i = 0;
-  $limit = min(count($children), 4);
-  $command = "montage $options ";
-
-  $repoURL = $object->repository->ri->connection->url;
-  while ($i < $limit) {
-    $command .= $repoURL . "/objects/" . $children[$i] . "/datastreams/TN/content ";
-    $i++;
-  }
-
-  $module_path = DRUPAL_ROOT . '/' . drupal_get_path('module', 'idu');
-  $cTName = $module_path . "/compoundTN.png";
-  $command .= "-geometry +4+4 -frame 5 -tile ${i}x1 -background none $cTName ";
-
-  // OK, the montage command is built...run it.
-  idu_drush_log("CompoundTN command is: '$command' for object $pid.", 'status');
-  $output = array();
-  exec($command, $output, $return_status);
-
-  if ($return_status != 0) {
-    idu_drush_log("CompoundTN exec operation returned an error with status of '$return_status'.", 'error');
-    return 0;
-  }
-
-  // Add an ellipsis if necessary...
-  if (count($children) > $limit) {
-    $temp = $module_path . "/temp.png";
-    if (rename($cTName, $temp)) {
-      $command = "montage $options $temp $module_path" . "/3dots.png ";
-      $command .= "-geometry +4+4 -tile 2x1 -background none $cTName ";
-      exec($command, $output, $return_status);
-      idu_drush_log("An ellipsis (...) was added to the CompoundTN image for object $pid.", 'status');
-    } else {
-      idu_drush_log("Error...Image $cTName could not be renamed to $temp.");
-      return 0;
-    }
-  }
-
-  // If a new compoundTN.png exists, save its contents to the object's TN datastream.
-  if (file_exists($cTName)) {
-    $datastream = isset($object[$dsid]) ? $object[$dsid] : $object->constructDatastream($dsid,"M");
-    $datastream->label = 'Compound Parent Thumbnail Montage';
-    $datastream->mimeType = 'image/png';
-    $datastream->setContentFromFile($cTName);
-    $object->ingestDatastream($datastream);
-    idu_drush_log("CompoundTN call is complete and the PNG result has been added to object $pid as TN.", 'status');
-
-    if (file_exists($cTName)) { unlink($cTName); }  // Clean up any old temporary files in the working directory.
-
-    /* If a TN is needed, add it now.    Ingest is throwing a repository error here????
-    if (!isset($object['TN']) && isset($children[0])) {
-      $datastream = $object->constructDatastream('TN', 'M');
-      $datastream->label = 'Thumbnail';
-      $datastream->mimeType = 'image/jpeg';
-      $urlTN = $remopoURL . "/objects/" . $children[0] . "/datastreams/TN/content ";
-      $datastream->setContentFromURL($urlTN);
-      $object->ingestDatastream($datastream);
-      idu_drush_log("CompoundTN added TN from $children[0] to object $pid.", 'status');
-    } */
-
-    return 1;
-  } else {
-    idu_drush_log("CompoundTN call did NOT yield a new PNG image!", 'error');
-    return 0;
-  }
-
 }
 
 
@@ -1966,4 +1831,3 @@ function icu_DSMimes( ) {
 @include_once 'sites/all/libraries/tuque/RepositoryException.php';
 @include_once 'sites/all/libraries/tuque/Repository.php';
 @include_once 'sites/all/libraries/tuque/FedoraRelationships.php';
-

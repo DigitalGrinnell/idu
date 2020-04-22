@@ -20,5 +20,5 @@ define('H_SVRDIR', '/hs/svr_1');
 define('H_BINDIR', '/hs/handle-9.2.0/bin');
 define('H_BATCH', 'idu_handle_batch.bat');
 define('H_LOG', 'idu_handle_batch.log');
-define('H_ADMKEY', ' ');                   // no key pass-phrase defined
+define('H_ADMKEY', 'the road goes ever on');     
 define('H_NUMERIC_ONLY', 'grinnell:');
