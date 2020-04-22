@@ -27,6 +27,7 @@ function iduF_validate($fix) {
     'Purge' => '10-Mar-2019',
     'RemoveEmptyCues' => '18-Mar-2019',
     'SelfTransform' => '10-Sep-2019',
+    'DCTransform' => '18-Mar-2020',
   );
 
   if (!key_exists($fix, $verified)) {
@@ -996,6 +997,70 @@ function idu_drush_fix_ChangeText($pid, $options) {
   return $total;
 }
 
+
+/**
+* Drush idu_fix_* function to apply MODS-to-DC transforms to an existing object.
+*
+* Invoke this function with an iduF process using a command of the form:
+*   drush iduF first DCTransform
+*
+* Applicable options are:
+*   --self=<path to the MODS self-transform XSL file>  Defaults to public://cleanup_mods_and_reorder.xsl  REMOVED!
+*   --xsl=<path to the MODS-to-DC transform XSL file>  Defaults to public://mods_to_dc_grinnell.xsl
+*
+* @param string $pid
+*   The PID (from the list of first-to-last) to operate on.
+* @return int
+*   The number of repair operations performed, or zero if none.
+*/
+function idu_drush_fix_DCTransform($pid) {
+
+ // For any exception, report and skip this PID
+ if (!$object = _idu_Repository()->getObject($pid)) {
+   idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+   return 0;
+ }
+
+ // Check for an existing MODS... if none, we're done.
+ if (!$mods = $object['MODS']) { return 0; }
+
+ // Check for existing DC record... if not, we're done.
+ if (!$dc = $object['DC']) { return 0; }
+
+ /* Disabling self-transform here at ICG hackdoc 24-May-2017  Get the MODS self-transform.
+ $xsl = new DOMDocument( );
+ $transform = drush_get_option('self', 'public://cleanup_mods_and_reorder.xsl');
+ if (!$xsl->load($transform)) { die("Failed to load Transform file '$transform!'"); }
+ $xslt = new XSLTProcessor( );
+ $xslt->importStyleSheet($xsl); */
+
+ /* Disabling self-transform here at ICG hackdoc 24-May-2017 Apply it to the MODS content.
+ $document = DOMDocument::loadXml($object['MODS']->content);
+ if ($doc = $xslt->transformToDoc($document)) {
+   $after = $doc->saveXML();
+   $object['MODS']->setContentFromString($after);
+ }
+ */
+
+ // Now, get the MODS-to-DC transform.
+ $xsl = new DOMDocument( );
+ $transform = drush_get_option('xsl', 'public://mods_to_dc_grinnell.xsl');
+ if (!$xsl->load($transform)) { die("Failed to load Transform file '$transform!'"); }
+ $xslt = new XSLTProcessor( );
+ $xslt->importStyleSheet($xsl);
+
+ // Apply the MODS-to-DC transform.
+ $document = DOMDocument::loadXml($object['MODS']->content);
+ if ($doc = $xslt->transformToDoc($document)) {
+   $after = $doc->saveXML();
+   $object['DC']->setContentFromString($after);
+ }
+
+ // Re-index this object in Solr.
+ idu_drush_update_solr_index($pid);
+
+ return 1;
+}
 
 
  /**
