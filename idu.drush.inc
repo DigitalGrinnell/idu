@@ -28,6 +28,7 @@ function iduF_validate($fix) {
     'RemoveEmptyCues' => '18-Mar-2019',
     'SelfTransform' => '10-Sep-2019',
     'DCTransform' => '18-Mar-2020',
+    'UpdateFromMODS' => '22-Apr-2020',
   );
 
   if (!key_exists($fix, $verified)) {
@@ -286,6 +287,11 @@ function idu_drush_command( ) {
       TitleBookPage -
         Changes the label/title of a book page to
           'Parent Title - Page XXX'.
+
+      UpdateFromMODS -
+        Updates an object's DC, object title, and Solr from MODS.
+          This effectively executes DCTransform and IndexSolr plus
+          an object properties update. [Verified 22-Apr-2020]
 
       toIR -
         Migrates an object from any collection to the grinnell:generic
@@ -1604,6 +1610,47 @@ function idu_drush_fix_CompoundTN($pid, $preOpts=NULL) {
 }
 
 
+/**
+* Drush idu_fix_* function to apply an UpdateFromMODS.  This includes a DCTransform, update of the
+*  object Title (properties), and IndexSolr.
+*
+* Invoke this function with an iduF process using a command of the form:
+*   drush iduF first UpdateFromMODS
+*
+* @param string $pid
+*   The PID (from the list of first-to-last) to operate on.
+* @return int
+*   The number of repair operations performed, or zero if none.
+*/
+function idu_drush_fix_UpdateFromMODS($pid) {
+
+  // For any exception, report and skip this PID
+  if (!$object = _idu_Repository()->getObject($pid)) {
+    idu_drush_log(__FUNCTION__."($pid) returned NO object!", 'error');
+    return 0;
+  }
+
+  // Check for an existing MODS... if none, we're done.
+  if (!$mods = $object['MODS']) { return 0; }
+
+  // Check for existing DC record... if not, we're done.
+  if (!$dc = $object['DC']) { return 0; }
+
+  // Get the object's /mods:mods/mods:title
+  $xpath = "/mods:mods/mods:titleInfo[not(@type)]/mods:title";
+  $content = $mods->content;
+  $xml = new DOMDocument;
+  $xml->loadXML($content);
+  $dx = new DOMXPath($xml);
+  if ($results = $dx->query($xpath)) {
+    foreach ($results as $node) {
+      $title = $node->nodeValue;
+      $object->label = trim($title);   // Apply the $title to the object
+      return idu_drush_fix_DCTransform($pid);    // Perform the DCTransform... which implicitly does a re-index in Solr
+    }
+  }
+}
+
 /* Helper functions ---------------------------------------------------------------------------- */
 
 /**
@@ -2031,4 +2078,3 @@ function icu_DSMimes( ) {
 @include_once 'sites/all/libraries/tuque/RepositoryException.php';
 @include_once 'sites/all/libraries/tuque/Repository.php';
 @include_once 'sites/all/libraries/tuque/FedoraRelationships.php';
-
