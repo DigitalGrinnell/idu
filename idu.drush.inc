@@ -20,7 +20,7 @@
 function iduF_validate($fix) {
   $verified = array(                // $verified holds the verification/availability status of iduF commands.
     'ChangeText' => '3-Apr-2019',
-    'CompoundTN' => '25-Oct-2019',
+    'CompoundTN' => '8-Jul-2020',
     'Derivatives' => '10-Mar-2019',
     'IndexSolr' => '10-Mar-2019',
     'MigrateObject' => '3-Apr-2019',
@@ -1545,15 +1545,16 @@ function idu_drush_fix_CompoundTN($pid, $preOpts=NULL) {
   $limit = min(count($children), 4);
   $command = "montage $options ";
 
-  $repoURL = $object->repository->ri->connection->url;
+  // $repoURL = $object->repository->ri->connection->url;
+  $repoURL = "https://digital.grinnell.edu/islandora";
   while ($i < $limit) {
-    $command .= $repoURL . "/objects/" . $children[$i] . "/datastreams/TN/content ";
+    $command .= $repoURL . "/object/" . $children[$i] . "/datastream/TN/view ";
     $i++;
   }
 
   $module_path = DRUPAL_ROOT . '/' . drupal_get_path('module', 'idu');
   $cTName = $module_path . "/compoundTN.png";
-  $command .= "-geometry +4+4 -frame 5 -tile ${i}x1 -background none $cTName ";
+  $command .= "-geometry +4+4 -frame 5 -tile ${i}x1 -background none -font DejaVu-Sans $cTName ";
 
   // OK, the montage command is built...run it.
   idu_drush_log("CompoundTN command is: '$command' for object $pid.", 'status');
